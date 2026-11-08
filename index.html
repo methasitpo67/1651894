@@ -1,4 +1,323 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TETRIS: NIGHT CITY (3D Cyberpunk)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --cp-yellow: #fce300;
+            --cp-cyan: #00f0ff;
+            --cp-red: #ff003c;
+            --cp-dark: #050505;
+        }
+
+        body {
+            font-family: 'Chakra Petch', sans-serif;
+            background-color: var(--cp-dark);
+            color: var(--cp-cyan);
+            overflow: hidden;
+            touch-action: none;
+            background-image: 
+                linear-gradient(rgba(0, 240, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 240, 255, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+        
+        .font-cyber { font-family: 'Orbitron', sans-serif; }
+
+        /* Cyberpunk Button */
+        .btn-cyber {
+            background-color: var(--cp-yellow);
+            color: black;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            position: relative;
+            border: none;
+            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+            transition: all 0.2s;
+            box-shadow: 0 0 10px rgba(252, 227, 0, 0.5);
+        }
+        .btn-cyber:hover {
+            background-color: white;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+        }
+        .btn-cyber:active {
+            transform: scale(0.95);
+        }
+        
+        .btn-cyber-red {
+            background-color: var(--cp-red);
+            color: white;
+            box-shadow: 0 0 10px rgba(255, 0, 60, 0.5);
+        }
+
+        .btn-cyber-cyan {
+            background-color: var(--cp-cyan);
+            color: black;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+        }
+
+        /* Glitch Effect */
+        .glitch {
+            position: relative;
+            color: var(--cp-yellow);
+            text-shadow: 0.05em 0 0 var(--cp-red), -0.025em -0.05em 0 var(--cp-cyan), 0.025em 0.05em 0 #0f0;
+            animation: glitch 500ms infinite;
+        }
+
+        @keyframes glitch {
+            0% { text-shadow: 0.05em 0 0 var(--cp-red), -0.05em -0.025em 0 var(--cp-cyan), -0.025em 0.05em 0 #0f0; }
+            14% { text-shadow: 0.05em 0 0 var(--cp-red), -0.05em -0.025em 0 var(--cp-cyan), -0.025em 0.05em 0 #0f0; }
+            15% { text-shadow: -0.05em -0.025em 0 var(--cp-red), 0.025em 0.025em 0 var(--cp-cyan), -0.05em -0.05em 0 #0f0; }
+            49% { text-shadow: -0.05em -0.025em 0 var(--cp-red), 0.025em 0.025em 0 var(--cp-cyan), -0.05em -0.05em 0 #0f0; }
+            50% { text-shadow: 0.025em 0.05em 0 var(--cp-red), 0.05em 0 0 var(--cp-cyan), 0 -0.05em 0 #0f0; }
+            99% { text-shadow: 0.025em 0.05em 0 var(--cp-red), 0.05em 0 0 var(--cp-cyan), 0 -0.05em 0 #0f0; }
+            100% { text-shadow: -0.025em 0 0 var(--cp-red), -0.025em -0.025em 0 var(--cp-cyan), -0.025em -0.05em 0 #0f0; }
+        }
+
+        /* 3D Game Container */
+        #game-container {
+            width: 300px;
+            height: 600px;
+            background-color: rgba(5, 5, 5, 0.8);
+            border: 2px solid var(--cp-cyan);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.3), inset 0 0 30px rgba(0, 240, 255, 0.1);
+            position: relative;
+            outline: 2px solid var(--cp-red);
+            outline-offset: -10px;
+        }
+
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .star-rating i { cursor: pointer; transition: color 0.2s; }
+        .star-rating i:hover, .star-rating i.active { color: var(--cp-yellow); text-shadow: 0 0 10px var(--cp-yellow); }
+
+        .mobile-btn {
+            background: rgba(0, 240, 255, 0.1);
+            border: 1px solid var(--cp-cyan);
+            color: var(--cp-cyan);
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; user-select: none;
+        }
+        .mobile-btn:active { background: rgba(0, 240, 255, 0.4); box-shadow: 0 0 15px var(--cp-cyan); }
+        
+        .panel-cyber {
+            background: rgba(10, 10, 10, 0.85);
+            border-left: 4px solid var(--cp-yellow);
+            border-right: 4px solid var(--cp-cyan);
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="scanlines"></div>
+
+    <!-- Init Audio Overlay (Requires user click to unlock AudioContext) -->
+    <div id="init-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black cursor-pointer">
+        <h1 class="font-cyber text-2xl md:text-4xl text-cyan-400 glitch animate-pulse text-center">CLICK TO INITIALIZE SYSTEM</h1>
+    </div>
+
+    <!-- Global Config Button (Top Right) -->
+    <button id="btn-global-config" class="fixed top-4 right-4 md:top-6 md:right-6 text-cyan-400 hover:text-white text-3xl transition-transform hover:rotate-90 z-40 hidden">
+        <i class="fas fa-cog"></i>
+    </button>
+
+    <!-- UI Overlay Containers -->
+    <div id="ui-container" class="absolute inset-0 flex flex-col items-center justify-center z-10 p-4 bg-black/80 backdrop-blur-md">
+        
+        <!-- Main Menu -->
+        <div id="screen-main" class="text-center flex flex-col items-center gap-6">
+            <h1 class="font-cyber text-5xl md:text-7xl mb-2 tracking-widest glitch">TETRIS<br><span class="text-3xl text-red-500">NOVA 2077</span></h1>
+            <p id="desc-main" class="text-cyan-400 max-w-md text-sm md:text-base mb-4 border-l-2 border-yellow-400 pl-4 text-left">
+                SYSTEM BOOT... OK.<br>
+                โหลดโมดูล 3D เรนเดอร์ริ่ง.<br>
+                เป้าหมาย: ตะลุย Night City ด้วย <span class="text-yellow-400 font-bold">"NOVA BLOCK"</span> ระเบิดทำลายทุกสิ่งรอบตัว.
+            </p>
+            <button id="btn-start" class="btn-cyber px-10 py-4 text-2xl mt-4 w-64 tracking-widest">SYSTEM START</button>
+            <button id="btn-settings" class="text-cyan-400 hover:text-cyan-300 mt-2 font-cyber tracking-widest text-sm underline">[ CONFIG SYSTEM ]</button>
+        </div>
+
+        <!-- Audio Settings Screen -->
+        <div id="screen-settings" class="hidden text-center flex flex-col items-center gap-6 bg-black/90 p-8 border border-cyan-400" style="clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);">
+            <h2 id="txt-config-title" class="font-cyber text-2xl mb-4 text-yellow-400 glitch">SYSTEM CONFIG</h2>
+            
+            <div class="w-64 text-left space-y-4">
+                <div class="flex justify-between items-center pb-2 border-b border-gray-700 mb-4">
+                    <label id="lbl-lang" class="text-cyan-400 font-cyber text-xs tracking-widest">LANGUAGE / ภาษา</label>
+                    <button id="btn-lang-toggle" class="btn-cyber px-3 py-1 text-xs">TH</button>
+                </div>
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-cyan-400 font-cyber text-xs tracking-widest">MASTER_VOL</label>
+                        <span id="lbl-vol-master" class="text-xs text-yellow-400 font-cyber">80%</span>
+                    </div>
+                    <input type="range" id="vol-master" min="0" max="100" value="80" class="w-full accent-yellow-400">
+                </div>
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-cyan-400 font-cyber text-xs tracking-widest">16BIT_BGM</label>
+                        <span id="lbl-vol-bgm" class="text-xs text-yellow-400 font-cyber">70%</span>
+                    </div>
+                    <input type="range" id="vol-bgm" min="0" max="100" value="70" class="w-full accent-cyan-400">
+                </div>
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-cyan-400 font-cyber text-xs tracking-widest">SFX_LEVEL</label>
+                        <span id="lbl-vol-sfx" class="text-xs text-yellow-400 font-cyber">90%</span>
+                    </div>
+                    <input type="range" id="vol-sfx" min="0" max="100" value="90" class="w-full accent-red-500">
+                </div>
+            </div>
+
+            <button id="btn-back-settings" class="btn-cyber px-8 py-3 w-64 mt-4">APPLY & RETURN</button>
+        </div>
+
+        <!-- Mode Select -->
+        <div id="screen-mode" class="hidden text-center flex flex-col items-center gap-6">
+            <h2 id="txt-select-proto" class="font-cyber text-2xl mb-6 text-cyan-400">SELECT PROTOCOL</h2>
+            <button id="btn-mode-stage" class="btn-cyber px-8 py-4 w-64 mb-2">STAGE MODE<br><span class="text-xs font-sans mt-1 block opacity-80 text-black">ตะลุย 5 ระดับความปลอดภัย</span></button>
+            <button id="btn-mode-free" class="btn-cyber btn-cyber-cyan px-8 py-4 w-64 mb-4">FREE MODE<br><span class="text-xs font-sans mt-1 block opacity-80 text-black">เข้ารหัสไร้ขีดจำกัด</span></button>
+            <button id="btn-back-main" class="text-red-500 hover:text-red-400 mt-4 font-cyber tracking-widest">&lt; ABORT</button>
+        </div>
+
+        <!-- Difficulty Select -->
+        <div id="screen-difficulty" class="hidden text-center flex flex-col items-center gap-4">
+            <h2 id="txt-sec-level" class="font-cyber text-2xl mb-6 text-yellow-400">SECURITY LEVEL</h2>
+            <button id="btn-diff-easy" class="btn-cyber px-8 py-3 w-64" style="background-color: #00ff00; color: black;">EASY</button>
+            <button id="btn-diff-normal" class="btn-cyber px-8 py-3 w-64">NORMAL</button>
+            <button id="btn-diff-hard" class="btn-cyber btn-cyber-red px-8 py-3 w-64">HARD</button>
+            <button id="btn-back-mode" class="text-red-500 hover:text-red-400 mt-6 font-cyber tracking-widest">&lt; ABORT</button>
+        </div>
+
+        <!-- Feedback & Stats Screen -->
+        <div id="screen-feedback" class="hidden bg-black p-6 md:p-8 border border-yellow-400 max-w-md w-full text-center relative" style="clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);">
+            <div class="absolute top-0 right-0 bg-yellow-400 text-black text-xs font-bold px-2 py-1">SYS_LOG</div>
+            <h2 id="feedback-title" class="font-cyber text-3xl mb-2 text-red-500 glitch">SYSTEM FAILURE</h2>
+            <p id="feedback-score" class="text-2xl mb-6 text-cyan-400 font-cyber">SCORE: 0000</p>
+            
+            <div class="bg-gray-900 p-4 mb-6 border-l-2 border-cyan-400 text-left">
+                <p id="lbl-eval" class="mb-2 text-sm text-yellow-400">EVALUATE EXPERIENCE [1-5]:</p>
+                <div class="star-rating text-3xl text-gray-700 flex justify-start gap-2 mb-4" id="star-container">
+                    <i class="fas fa-star" data-val="1"></i>
+                    <i class="fas fa-star" data-val="2"></i>
+                    <i class="fas fa-star" data-val="3"></i>
+                    <i class="fas fa-star" data-val="4"></i>
+                    <i class="fas fa-star" data-val="5"></i>
+                </div>
+                <textarea id="feedback-comment" rows="3" class="w-full bg-black border border-gray-700 p-2 text-cyan-400 outline-none focus:border-yellow-400 placeholder-gray-600 font-sans" placeholder="LOG ENTRY..."></textarea>
+            </div>
+            
+            <button id="btn-submit" class="btn-cyber w-full py-3">UPLOAD DATA & REBOOT</button>
+        </div>
+        
+        <!-- Loading State -->
+        <div id="screen-loading" class="hidden text-center">
+            <i class="fas fa-circle-notch fa-spin text-5xl text-yellow-400 mb-4"></i>
+            <p class="font-cyber tracking-widest text-cyan-400">CONNECTING TO NEURAL NET...</p>
+        </div>
+    </div>
+
+    <!-- Game UI -->
+    <div id="game-ui" class="hidden flex-col md:flex-row gap-4 md:gap-8 items-center md:items-start w-full max-w-4xl px-4 z-0">
+        
+        <!-- Left Panel: Stats -->
+        <div class="panel-cyber p-4 w-full md:w-48 order-2 md:order-1 flex flex-row md:flex-col justify-between">
+            <div class="mb-0 md:mb-6">
+                <p id="lbl-data-cred" class="text-yellow-400 text-xs font-cyber tracking-widest mb-1">DATA_CREDITS</p>
+                <p id="ui-score" class="text-xl md:text-3xl font-cyber text-white">0</p>
+            </div>
+            <div id="stage-info-panel" class="mb-0 md:mb-6">
+                <p class="text-cyan-400 text-xs font-cyber tracking-widest mb-1"><span id="lbl-proto">PROTOCOL</span> <span id="ui-stage">1</span></p>
+                <p class="text-sm"><span id="lbl-target">TARGET:</span> <span id="ui-goal" class="text-red-400 font-bold">0/5</span></p>
+            </div>
+            <div>
+                <p id="lbl-mode" class="text-gray-500 text-xs font-cyber tracking-widest mb-1">MODE</p>
+                <p id="ui-mode-text" class="text-sm font-bold text-gray-300">STAGE_NORMAL</p>
+            </div>
+        </div>
+
+        <!-- Center: 3D Game Container -->
+        <div class="relative order-1 md:order-2 flex flex-col items-center">
+            <div id="game-container"></div>
+            
+            <!-- Mobile Controls (Cyberpunk styled) -->
+            <div class="md:hidden grid grid-cols-3 gap-3 mt-4 w-full max-w-[300px]">
+                <div class="col-start-1 flex justify-end"><button class="mobile-btn w-14 h-14" id="btn-left"><i class="fas fa-chevron-left"></i></button></div>
+                <div class="col-start-2 flex justify-center"><button class="mobile-btn w-14 h-14" id="btn-rotate"><i class="fas fa-undo"></i></button></div>
+                <div class="col-start-3 flex justify-start"><button class="mobile-btn w-14 h-14" id="btn-right"><i class="fas fa-chevron-right"></i></button></div>
+                <div class="col-start-2 flex justify-center"><button class="mobile-btn w-14 h-14" id="btn-down"><i class="fas fa-chevron-down"></i></button></div>
+                <div class="col-start-3 flex justify-start"><button class="mobile-btn w-14 h-14 border-red-500 text-red-500" id="btn-drop"><i class="fas fa-angle-double-down"></i></button></div>
+            </div>
+            
+            <!-- Pause Overlay -->
+            <div id="pause-overlay" class="hidden absolute inset-0 bg-black/80 backdrop-blur flex items-center justify-center flex-col top-0 h-[600px] w-[300px] border border-yellow-400 z-20">
+                <h2 id="txt-paused" class="font-cyber text-3xl text-yellow-400 mb-6 glitch">SYSTEM PAUSED</h2>
+                <button id="btn-resume" class="btn-cyber px-6 py-2 mb-4 w-48">RESUME</button>
+                <button id="btn-quit" class="btn-cyber btn-cyber-red px-6 py-2 w-48">DISCONNECT</button>
+            </div>
+            
+            <!-- Message Overlay -->
+            <div id="msg-overlay" class="hidden absolute inset-0 flex items-center justify-center top-0 h-[600px] w-[300px] pointer-events-none z-20 bg-black/50">
+                <h2 id="msg-text" class="font-cyber text-3xl text-yellow-400 transform scale-150 opacity-0 transition-all duration-300 drop-shadow-[0_0_15px_rgba(252,227,0,1)] text-center w-full bg-black/80 py-4 border-y-2 border-yellow-400">PROTOCOL CLEAR</h2>
+            </div>
+        </div>
+
+        <!-- Right Panel: Next Piece -->
+        <div class="panel-cyber p-4 w-full md:w-48 order-3 flex flex-col items-center md:items-start">
+            <p id="lbl-next" class="text-cyan-400 text-xs font-cyber tracking-widest mb-2">NEXT_BLOCK</p>
+            <canvas id="next-canvas" width="120" height="120" class="bg-black border border-cyan-900 mb-6 w-full object-contain" style="box-shadow: inset 0 0 10px rgba(0,240,255,0.2);"></canvas>
+            
+            <div class="hidden md:block w-full">
+                <p id="lbl-cmd" class="text-gray-500 text-xs font-cyber tracking-widest mb-2 border-b border-gray-700 pb-1">COMMANDS</p>
+                <ul class="text-sm text-gray-300 space-y-2 mt-2">
+                    <li><span class="text-yellow-400 font-bold">[←] [→]</span> <span id="cmd-move">MOVE</span></li>
+                    <li><span class="text-yellow-400 font-bold">[↑]</span> <span id="cmd-rot">ROTATE</span></li>
+                    <li><span class="text-yellow-400 font-bold">[↓]</span> <span id="cmd-sdrop">SOFT DROP</span></li>
+                    <li><span class="text-yellow-400 font-bold">[SPACE]</span> <span id="cmd-hdrop">HARD DROP</span></li>
+                    <li><span class="text-yellow-400 font-bold">[P]</span> <span id="cmd-pause">PAUSE</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN GAME LOGIC (Module) -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getDatabase, ref, push, set } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
@@ -39,7 +358,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         async function saveGameData(data) {
             if (!db) return;
             try {
-                // บันทึกข้อมูลลงใน path ชื่อ 'feedbacks' บน Realtime Database
                 const feedbacksRef = ref(db, 'feedbacks');
                 const newFeedbackRef = push(feedbacksRef);
                 await set(newFeedbackRef, {
@@ -52,3 +370,1028 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                 console.error("Error saving feedback:", e);
             }
         }
+
+        // ==========================================
+        // Audio (Tone.js)
+        // ==========================================
+        let synth, explosionSynth, clearSynth, uiSynth;
+        let masterNode, bgmNode, sfxNode;
+        let bgmSynth, bassSynth, kickSynth, hatSynth;
+        let bgmPart, bassPart, kickPart, hatPart;
+        let menuDrone, menuLoop;
+        let audioInitialized = false;
+        let isMenuMusicPlaying = false;
+
+        function sliderToDb(val) {
+            if (val <= 0) return -Infinity;
+            return 20 * Math.log10(val / 100);
+        }
+
+        function initAudio() {
+            if (audioInitialized) return;
+            try {
+                masterNode = new Tone.Volume(sliderToDb(document.getElementById('vol-master').value)).toDestination();
+                bgmNode = new Tone.Volume(sliderToDb(document.getElementById('vol-bgm').value)).connect(masterNode);
+                sfxNode = new Tone.Volume(sliderToDb(document.getElementById('vol-sfx').value)).connect(masterNode);
+
+                synth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sawtooth" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.2 }
+                }).connect(sfxNode);
+
+                clearSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 1 }
+                }).connect(sfxNode);
+
+                explosionSynth = new Tone.MembraneSynth({
+                    pitchDecay: 0.05,
+                    octaves: 10,
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4 }
+                }).connect(sfxNode);
+                explosionSynth.volume.value = 4;
+                
+                uiSynth = new Tone.Synth({
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.05 }
+                }).connect(sfxNode);
+                uiSynth.volume.value = -15;
+
+                bgmSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }
+                }).connect(bgmNode);
+                bgmSynth.volume.value = -8; 
+
+                bassSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sawtooth" },
+                    envelope: { attack: 0.05, decay: 0.2, sustain: 0.4, release: 0.3 }
+                }).connect(bgmNode);
+                bassSynth.volume.value = -2;
+
+                kickSynth = new Tone.MembraneSynth({
+                    pitchDecay: 0.05,
+                    octaves: 4,
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.001, decay: 0.2, sustain: 0.01, release: 0.1 }
+                }).connect(bgmNode);
+                kickSynth.volume.value = -2;
+
+                hatSynth = new Tone.NoiseSynth({
+                    noise: { type: "white" },
+                    envelope: { attack: 0.005, decay: 0.05, sustain: 0, release: 0.01 }
+                }).connect(bgmNode);
+                hatSynth.volume.value = -12;
+
+                menuDrone = new Tone.FMSynth({
+                    harmonicity: 0.5,
+                    modulationIndex: 5,
+                    oscillator: { type: "sine" },
+                    modulation: { type: "square" },
+                    envelope: { attack: 2, decay: 1, sustain: 1, release: 3 }
+                }).connect(bgmNode);
+                menuDrone.volume.value = -18;
+                menuLoop = new Tone.Loop(time => {
+                    menuDrone.triggerAttackRelease("C2", "1m", time);
+                    menuDrone.triggerAttackRelease("G2", "2n", time + Tone.Time("2n"));
+                }, "2m");
+
+                const arpNotes = ["C4", "D#4", "G4", "C5", "G4", "D#4", "C4", "G3", "A#3", "D4", "F4", "A#4", "F4", "D4", "A#3", "F3"];
+                const bassNotes = ["C2", null, "C2", null, "C2", null, "C2", "D#2", "A#1", null, "A#1", null, "A#1", null, "A#1", "F1"];
+                const kickNotes = ["C1", null, null, null, "C1", null, null, null, "C1", null, null, null, "C1", null, "C1", null];
+                const hatNotes = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+
+                bgmPart = new Tone.Sequence((time, note) => {
+                    bgmSynth.triggerAttackRelease(note, "16n", time);
+                }, arpNotes, "16n");
+
+                bassPart = new Tone.Sequence((time, note) => {
+                    if(note) bassSynth.triggerAttackRelease(note, "8n", time);
+                }, bassNotes, "16n");
+
+                kickPart = new Tone.Sequence((time, note) => {
+                    if(note) kickSynth.triggerAttackRelease(note, "16n", time);
+                }, kickNotes, "16n");
+
+                hatPart = new Tone.Sequence((time, note) => {
+                    if(note) hatSynth.triggerAttackRelease("16n", time);
+                }, hatNotes, "16n");
+
+                Tone.Transport.bpm.value = 135;
+                
+                audioInitialized = true;
+            } catch (e) { console.error(e); }
+        }
+
+        function playBGM() {
+            if(!audioInitialized) return;
+            stopMenuBGM();
+            if(Tone.Transport.state !== 'started') Tone.Transport.start();
+            bgmPart.start(0);
+            bassPart.start(0);
+            kickPart.start(0);
+            hatPart.start(0);
+        }
+
+        function stopBGM() {
+            if(!audioInitialized) return;
+            bgmPart.stop();
+            bassPart.stop();
+            kickPart.stop();
+            hatPart.stop();
+        }
+
+        function playMenuBGM() {
+            if(!audioInitialized) return;
+            stopBGM();
+            if(Tone.Transport.state !== 'started') Tone.Transport.start();
+            if(!isMenuMusicPlaying) {
+                menuLoop.start(0);
+                isMenuMusicPlaying = true;
+            }
+        }
+
+        function stopMenuBGM() {
+            if(!audioInitialized) return;
+            menuLoop.stop();
+            isMenuMusicPlaying = false;
+        }
+
+        function pauseBGM() {
+            if(!audioInitialized) return;
+            Tone.Transport.pause();
+        }
+
+        function resumeBGM() {
+            if(!audioInitialized) return;
+            Tone.Transport.start();
+        }
+
+        function playSound(type) {
+            if (!audioInitialized) return;
+            switch(type) {
+                case 'hover': uiSynth.triggerAttackRelease("C6", "32n"); break;
+                case 'click': uiSynth.triggerAttackRelease("G5", "16n"); break;
+                case 'move': synth.triggerAttackRelease("C2", "32n"); break;
+                case 'rotate': synth.triggerAttackRelease("G2", "32n"); break;
+                case 'drop': synth.triggerAttackRelease("C1", "16n"); break;
+                case 'clear': clearSynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n"); break;
+                case 'nova': 
+                    explosionSynth.triggerAttackRelease("C1", "2n");
+                    clearSynth.triggerAttackRelease(["C5", "D#5", "G5", "A#5"], "4n");
+                    break;
+                case 'gameover': synth.triggerAttackRelease(["C2", "G1", "C1"], "1n"); break;
+                case 'stageclear': clearSynth.triggerAttackRelease(["C4", "F4", "A4", "C5", "F5"], "2n"); break;
+            }
+        }
+
+        const COLS = 10;
+        const ROWS = 20;
+        
+        let board = [];
+        let gameState = 'init';
+        let currentMode = 'stage';
+        let currentDiff = 'normal';
+        let score = 0;
+        let level = 1;
+        let currentStage = 1;
+        let linesClearedThisStage = 0;
+        let targetLines = 5;
+        
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+        let animationId;
+        
+        const COLORS = [
+            null,
+            0x00f0ff,
+            0x0055ff,
+            0xff8800,
+            0xfce300,
+            0x00ff00,
+            0xff00ff,
+            0xff003c
+        ];
+
+        const PIECES = [
+            [],
+            [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]],
+            [[2,0,0], [2,2,2], [0,0,0]],
+            [[0,0,3], [3,3,3], [0,0,0]],
+            [[4,4], [4,4]],
+            [[0,5,5], [5,5,0], [0,0,0]],
+            [[0,6,0], [6,6,6], [0,0,0]],
+            [[7,7,0], [0,7,7], [0,0,0]]
+        ];
+
+        let player = { pos: {x: 0, y: 0}, matrix: null, nextMatrix: null };
+        let selectedRating = 0;
+        let configReturnTarget = 'menu';
+
+        const i18n = {
+            TH: {
+                descMain: "SYSTEM BOOT... OK.<br>โหลดโมดูล 3D เรนเดอร์ริ่ง.<br>เป้าหมาย: ตะลุย Night City ด้วย <span class='text-yellow-400 font-bold'>\"NOVA BLOCK\"</span> ระเบิดทำลายทุกสิ่งรอบตัว.",
+                btnStart: "SYSTEM START",
+                btnSettings: "[ CONFIG SYSTEM ]",
+                txtSelectProto: "SELECT PROTOCOL",
+                btnModeStage: "STAGE MODE<br><span class='text-xs font-sans mt-1 block opacity-80 text-black'>ตะลุย 5 ระดับความปลอดภัย</span>",
+                btnModeFree: "FREE MODE<br><span class='text-xs font-sans mt-1 block opacity-80 text-black'>เข้ารหัสไร้ขีดจำกัด</span>",
+                btnBackMain: "&lt; ABORT",
+                btnBackMode: "&lt; ABORT",
+                txtSecLevel: "SECURITY LEVEL",
+                btnDiffEasy: "EASY",
+                btnDiffNormal: "NORMAL",
+                btnDiffHard: "HARD",
+                txtConfigTitle: "SYSTEM CONFIG",
+                btnBackSettings: "APPLY & RETURN",
+                txtPaused: "SYSTEM PAUSED",
+                btnResume: "RESUME",
+                btnQuit: "DISCONNECT",
+                lblEval: "EVALUATE EXPERIENCE [1-5]:",
+                btnSubmit: "UPLOAD DATA & REBOOT",
+                lblDataCred: "DATA_CREDITS",
+                lblProto: "PROTOCOL",
+                lblTarget: "TARGET:",
+                lblMode: "MODE",
+                lblNext: "NEXT_BLOCK",
+                lblCmd: "COMMANDS",
+                cmdMove: "MOVE",
+                cmdRot: "ROTATE",
+                cmdSDrop: "SOFT DROP",
+                cmdHDrop: "HARD DROP",
+                cmdPause: "PAUSE",
+                sysFailure: "SYSTEM FAILURE",
+                missionAcc: "MISSION ACCOMPLISHED"
+            },
+            EN: {
+                descMain: "SYSTEM BOOT... OK.<br>Loading 3D Rendering Module.<br>Objective: Survive Night City with <span class='text-yellow-400 font-bold'>\"NOVA BLOCK\"</span>, obliterating everything.",
+                btnStart: "SYSTEM START",
+                btnSettings: "[ CONFIG SYSTEM ]",
+                txtSelectProto: "SELECT PROTOCOL",
+                btnModeStage: "STAGE MODE<br><span class='text-xs font-sans mt-1 block opacity-80 text-black'>Clear 5 Security Levels</span>",
+                btnModeFree: "FREE MODE<br><span class='text-xs font-sans mt-1 block opacity-80 text-black'>Infinite Decryption</span>",
+                btnBackMain: "&lt; ABORT",
+                btnBackMode: "&lt; ABORT",
+                txtSecLevel: "SECURITY LEVEL",
+                btnDiffEasy: "EASY",
+                btnDiffNormal: "NORMAL",
+                btnDiffHard: "HARD",
+                txtConfigTitle: "SYSTEM CONFIG",
+                btnBackSettings: "APPLY & RETURN",
+                txtPaused: "SYSTEM PAUSED",
+                btnResume: "RESUME",
+                btnQuit: "DISCONNECT",
+                lblEval: "EVALUATE EXPERIENCE [1-5]:",
+                btnSubmit: "UPLOAD DATA & REBOOT",
+                lblDataCred: "DATA_CREDITS",
+                lblProto: "PROTOCOL",
+                lblTarget: "TARGET:",
+                lblMode: "MODE",
+                lblNext: "NEXT_BLOCK",
+                lblCmd: "COMMANDS",
+                cmdMove: "MOVE",
+                cmdRot: "ROTATE",
+                cmdSDrop: "SOFT DROP",
+                cmdHDrop: "HARD DROP",
+                cmdPause: "PAUSE",
+                sysFailure: "SYSTEM FAILURE",
+                missionAcc: "MISSION ACCOMPLISHED"
+            }
+        };
+        let currentLang = 'TH';
+
+        function applyLanguage() {
+            const dict = i18n[currentLang];
+            document.getElementById('desc-main').innerHTML = dict.descMain;
+            document.getElementById('btn-start').innerHTML = dict.btnStart;
+            document.getElementById('btn-settings').innerHTML = dict.btnSettings;
+            document.getElementById('txt-select-proto').innerHTML = dict.txtSelectProto;
+            document.getElementById('btn-mode-stage').innerHTML = dict.btnModeStage;
+            document.getElementById('btn-mode-free').innerHTML = dict.btnModeFree;
+            document.getElementById('btn-back-main').innerHTML = dict.btnBackMain;
+            document.getElementById('btn-back-mode').innerHTML = dict.btnBackMode;
+            document.getElementById('txt-sec-level').innerHTML = dict.txtSecLevel;
+            document.getElementById('btn-diff-easy').innerHTML = dict.btnDiffEasy;
+            document.getElementById('btn-diff-normal').innerHTML = dict.btnDiffNormal;
+            document.getElementById('btn-diff-hard').innerHTML = dict.btnDiffHard;
+            document.getElementById('txt-config-title').innerHTML = dict.txtConfigTitle;
+            document.getElementById('btn-back-settings').innerHTML = dict.btnBackSettings;
+            document.getElementById('txt-paused').innerHTML = dict.txtPaused;
+            document.getElementById('btn-resume').innerHTML = dict.btnResume;
+            document.getElementById('btn-quit').innerHTML = dict.btnQuit;
+            document.getElementById('lbl-eval').innerHTML = dict.lblEval;
+            if(!document.getElementById('btn-submit').disabled) document.getElementById('btn-submit').innerHTML = dict.btnSubmit;
+            
+            document.getElementById('lbl-data-cred').innerHTML = dict.lblDataCred;
+            document.getElementById('lbl-proto').innerHTML = dict.lblProto;
+            document.getElementById('lbl-target').innerHTML = dict.lblTarget;
+            document.getElementById('lbl-mode').innerHTML = dict.lblMode;
+            document.getElementById('lbl-next').innerHTML = dict.lblNext;
+            document.getElementById('lbl-cmd').innerHTML = dict.lblCmd;
+            document.getElementById('cmd-move').innerHTML = dict.cmdMove;
+            document.getElementById('cmd-rot').innerHTML = dict.cmdRot;
+            document.getElementById('cmd-sdrop').innerHTML = dict.cmdSDrop;
+            document.getElementById('cmd-hdrop').innerHTML = dict.cmdHDrop;
+            document.getElementById('cmd-pause').innerHTML = dict.cmdPause;
+
+            const fbTitle = document.getElementById('feedback-title');
+            if(fbTitle.innerHTML.includes('FAILURE') || fbTitle.innerHTML.includes('ล้มเหลว') || fbTitle.innerHTML.includes('CRASH')) fbTitle.innerHTML = dict.sysFailure;
+            if(fbTitle.innerHTML.includes('ACCOMPLISHED') || fbTitle.innerHTML.includes('สำเร็จ')) fbTitle.innerHTML = dict.missionAcc;
+
+            document.getElementById('btn-lang-toggle').innerHTML = currentLang;
+        }
+
+        const container = document.getElementById('game-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, 300/600, 0.1, 1000);
+        camera.position.set(0, 0, 26);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+        renderer.setSize(300, 600);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(300, 600), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.1;
+        bloomPass.strength = 1.2;
+        bloomPass.radius = 0.5;
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        const gridHelper = new THREE.GridHelper(40, 40, 0x005577, 0x001122);
+        gridHelper.material.transparent = true;
+        gridHelper.material.opacity = 0.3;
+        gridHelper.rotation.x = Math.PI / 2;
+        gridHelper.position.z = -2;
+        scene.add(gridHelper);
+
+        const edgesGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(COLS, ROWS, 1));
+        const edgesMat = new THREE.LineBasicMaterial({ color: 0xff003c });
+        const boundary = new THREE.LineSegments(edgesGeo, edgesMat);
+        scene.add(boundary);
+
+        const blockGeo = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+        const meshGrid = [];
+        for(let y=0; y<ROWS; y++) {
+            meshGrid[y] = [];
+            for(let x=0; x<COLS; x++) {
+                const mat = new THREE.MeshStandardMaterial({ 
+                    color: 0x111111, 
+                    emissive: 0x000000,
+                    emissiveIntensity: 1,
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+                const mesh = new THREE.Mesh(blockGeo, mat);
+                mesh.position.set(x - COLS/2 + 0.5, (ROWS/2 - 0.5) - y, 0); 
+                mesh.visible = false;
+                scene.add(mesh);
+                meshGrid[y][x] = mesh;
+            }
+        }
+
+        const ambientLight = new THREE.AmbientLight(0x222222);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight.position.set(0, 0, 10);
+        scene.add(pointLight);
+
+        const nextCanvas = document.getElementById('next-canvas');
+        const nextCtx = nextCanvas.getContext('2d');
+
+        function createMatrix(w, h) {
+            const matrix = [];
+            while (h--) matrix.push(new Array(w).fill(0));
+            return matrix;
+        }
+
+        function createRandomPiece() {
+            const typeId = Math.floor(Math.random() * 7) + 1;
+            let matrix = [];
+            for (let i = 0; i < PIECES[typeId].length; i++) {
+                matrix.push([...PIECES[typeId][i]]);
+            }
+            if (Math.random() < 0.15) {
+                let blocks = [];
+                for(let y=0; y<matrix.length; y++) {
+                    for(let x=0; x<matrix[y].length; x++) {
+                        if(matrix[y][x] !== 0) blocks.push({y, x});
+                    }
+                }
+                if (blocks.length > 0) {
+                    let r = Math.floor(Math.random() * blocks.length);
+                    matrix[blocks[r].y][blocks[r].x] += 10;
+                }
+            }
+            return matrix;
+        }
+
+        function collide(board, player) {
+            const m = player.matrix;
+            const o = player.pos;
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0 && (board[y + o.y] && board[y + o.y][x + o.x]) !== 0) return true;
+                }
+            }
+            return false;
+        }
+
+        function merge(board, player) {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) board[y + player.pos.y][x + player.pos.x] = value;
+                });
+            });
+        }
+
+        function rotate(matrix, dir) {
+            for (let y = 0; y < matrix.length; ++y) {
+                for (let x = 0; x < y; ++x) {
+                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+                }
+            }
+            if (dir > 0) matrix.forEach(row => row.reverse());
+            else matrix.reverse();
+        }
+
+        function playerReset() {
+            player.matrix = player.nextMatrix;
+            player.nextMatrix = createRandomPiece();
+            player.pos.y = 0;
+            player.pos.x = Math.floor(COLS / 2) - Math.floor(player.matrix[0].length / 2);
+            
+            drawNextPiece2D();
+            
+            if (collide(board, player)) handleGameOver();
+        }
+
+        function playerDrop() {
+            player.pos.y++;
+            if (collide(board, player)) {
+                player.pos.y--;
+                merge(board, player);
+                playSound('drop');
+                playerReset();
+                arenaSweep();
+            }
+            dropCounter = 0;
+        }
+        
+        function playerHardDrop() {
+            while(!collide(board, player)) {
+                player.pos.y++;
+                score += 2; 
+            }
+            player.pos.y--;
+            merge(board, player);
+            playSound('drop');
+            playerReset();
+            arenaSweep();
+            dropCounter = 0;
+            updateUI();
+        }
+
+        function playerMove(offset) {
+            player.pos.x += offset;
+            if (collide(board, player)) player.pos.x -= offset;
+            else playSound('move');
+        }
+
+        function playerRotate(dir) {
+            const pos = player.pos.x;
+            let offset = 1;
+            rotate(player.matrix, dir);
+            while (collide(board, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > player.matrix[0].length) {
+                    rotate(player.matrix, -dir);
+                    player.pos.x = pos;
+                    return;
+                }
+            }
+            playSound('rotate');
+        }
+
+        function arenaSweep() {
+            let rowCount = 1;
+            let linesCleared = 0;
+            let hasNova = false;
+            let rowsToClear = [];
+
+            for (let y = ROWS - 1; y >= 0; y--) {
+                let isFull = true;
+                let rowHasNova = false;
+                for (let x = 0; x < COLS; x++) {
+                    if (board[y][x] === 0) { isFull = false; break; }
+                    if (board[y][x] > 10) rowHasNova = true;
+                }
+                if (isFull) {
+                    rowsToClear.push(y);
+                    if (rowHasNova) hasNova = true;
+                }
+            }
+
+            if (rowsToClear.length > 0) {
+                if (hasNova) {
+                    let expandedClear = new Set(rowsToClear);
+                    rowsToClear.forEach(r => {
+                        let actualRowNova = board[r].some(v => v > 10);
+                        if (actualRowNova) {
+                            if (r > 0) expandedClear.add(r - 1);
+                            if (r < ROWS - 1) expandedClear.add(r + 1);
+                        }
+                    });
+                    rowsToClear = Array.from(expandedClear).sort((a,b) => b - a);
+                    
+                    playSound('nova');
+                    showMessage("NOVA BLAST!", "text-red-500 glitch");
+                    
+                    camera.position.x += (Math.random() - 0.5) * 2;
+                    camera.position.y += (Math.random() - 0.5) * 2;
+                    setTimeout(() => camera.position.set(0, 0, 26), 100);
+
+                } else {
+                    playSound('clear');
+                }
+
+                linesCleared = rowsToClear.length;
+                rowsToClear.forEach(r => board.splice(r, 1));
+                for(let i=0; i<linesCleared; i++) board.unshift(new Array(COLS).fill(0));
+
+                const baseScore = hasNova ? 500 : 100;
+                score += linesCleared * baseScore * rowCount;
+                
+                if (currentMode === 'stage') {
+                    linesClearedThisStage += rowsToClear.length;
+                    if (linesClearedThisStage >= targetLines) {
+                        handleStageClear();
+                        return;
+                    }
+                } else {
+                    level = Math.floor(score / 2000) + 1;
+                    dropInterval = Math.max(100, 1000 - (level * 100));
+                }
+                updateUI();
+            }
+        }
+
+        function update3D(time) {
+            for(let y=0; y<ROWS; y++) {
+                for(let x=0; x<COLS; x++) {
+                    meshGrid[y][x].visible = false;
+                }
+            }
+
+            for(let y=0; y<ROWS; y++) {
+                for(let x=0; x<COLS; x++) {
+                    let val = board[y][x];
+                    if (val !== 0) {
+                        applyMaterial(meshGrid[y][x], val, time);
+                    }
+                }
+            }
+
+            if (player.matrix) {
+                player.matrix.forEach((row, py) => {
+                    row.forEach((val, px) => {
+                        if (val !== 0) {
+                            let boardY = player.pos.y + py;
+                            let boardX = player.pos.x + px;
+                            if(boardY >= 0 && boardY < ROWS && boardX >= 0 && boardX < COLS) {
+                                applyMaterial(meshGrid[boardY][boardX], val, time);
+                            }
+                        }
+                    });
+                });
+            }
+        }
+
+        function applyMaterial(mesh, val, time) {
+            mesh.visible = true;
+            let isNova = val > 10;
+            let colorHex = COLORS[isNova ? val - 10 : val];
+            
+            mesh.material.color.setHex(colorHex);
+            
+            if (isNova) {
+                let pulse = (Math.sin(time / 100) + 1) / 2;
+                mesh.material.emissive.setHex(0xffffff);
+                mesh.material.emissiveIntensity = 1 + pulse * 2;
+                mesh.scale.set(1.1, 1.1, 1.1);
+            } else {
+                mesh.material.emissive.setHex(colorHex);
+                mesh.material.emissiveIntensity = 0.8;
+                mesh.scale.set(1, 1, 1);
+            }
+        }
+
+        function drawNextPiece2D() {
+            nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+            if (!player.nextMatrix) return;
+            
+            const size = 25;
+            let m = player.nextMatrix;
+            let offsetX = (nextCanvas.width - m[0].length * size) / 2;
+            let offsetY = (nextCanvas.height - m.length * size) / 2;
+
+            m.forEach((row, y) => {
+                row.forEach((val, x) => {
+                    if (val !== 0) {
+                        let isNova = val > 10;
+                        let colorHex = COLORS[isNova ? val - 10 : val];
+                        let hexStr = '#' + colorHex.toString(16).padStart(6, '0');
+                        
+                        nextCtx.fillStyle = hexStr;
+                        nextCtx.fillRect(offsetX + x*size, offsetY + y*size, size-2, size-2);
+                        
+                        if(isNova) {
+                            nextCtx.fillStyle = 'white';
+                            nextCtx.fillRect(offsetX + x*size + size/4, offsetY + y*size + size/4, size/2, size/2);
+                        }
+                    }
+                });
+            });
+        }
+
+        function update(time = 0) {
+            if (gameState !== 'playing') return;
+
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) playerDrop();
+
+            update3D(time);
+            composer.render();
+
+            animationId = requestAnimationFrame(update);
+        }
+
+        function setupDifficulty() {
+            let baseSpeed = 1000;
+            if (currentDiff === 'normal') baseSpeed = 800;
+            if (currentDiff === 'hard') baseSpeed = 500;
+
+            if (currentMode === 'stage') {
+                targetLines = 5 + (currentStage - 1) * 5; 
+                dropInterval = baseSpeed - ((currentStage - 1) * 100);
+                
+                if (currentStage >= 3) {
+                    let garbageLines = currentStage === 3 ? 2 : (currentStage === 4 ? 4 : 5);
+                    if (currentDiff === 'easy') garbageLines = Math.max(0, garbageLines - 2);
+                    if (currentDiff === 'hard') garbageLines += 2;
+                    
+                    for (let y = ROWS - 1; y >= ROWS - garbageLines; y--) {
+                        for (let x = 0; x < COLS; x++) {
+                            if (Math.random() > 0.3) {
+                                board[y][x] = Math.floor(Math.random() * 7) + 1;
+                            }
+                        }
+                    }
+                }
+            } else {
+                dropInterval = baseSpeed;
+            }
+        }
+
+        function startGame(diff) {
+            currentDiff = diff;
+            gameState = 'playing';
+            
+            board = createMatrix(COLS, ROWS);
+            score = 0; currentStage = 1; level = 1; linesClearedThisStage = 0;
+            
+            setupDifficulty();
+            
+            document.getElementById('ui-container').classList.add('hidden');
+            document.getElementById('game-ui').classList.remove('hidden');
+            document.getElementById('game-ui').classList.add('flex');
+            document.getElementById('btn-global-config').classList.remove('hidden');
+            
+            updateUI();
+            
+            player.nextMatrix = createRandomPiece();
+            playerReset();
+            
+            lastTime = performance.now();
+            dropCounter = 0;
+            cancelAnimationFrame(animationId);
+            update(lastTime);
+            
+            playBGM();
+        }
+
+        function showMessage(text, colorClass = "text-yellow-400", duration = 1500) {
+            const overlay = document.getElementById('msg-overlay');
+            const msgEl = document.getElementById('msg-text');
+            msgEl.innerHTML = text;
+            msgEl.className = `font-cyber text-3xl transform scale-150 opacity-0 transition-all duration-300 drop-shadow-[0_0_15px_rgba(252,227,0,1)] text-center w-full bg-black/80 py-4 border-y-2 border-yellow-400 ${colorClass}`;
+            
+            overlay.classList.remove('hidden');
+            setTimeout(() => {
+                msgEl.classList.remove('opacity-0', 'scale-150');
+                msgEl.classList.add('opacity-100', 'scale-100');
+            }, 50);
+
+            if (duration > 0) {
+                setTimeout(() => {
+                    msgEl.classList.remove('opacity-100', 'scale-100');
+                    msgEl.classList.add('opacity-0', 'scale-150');
+                    setTimeout(() => overlay.classList.add('hidden'), 300);
+                }, duration);
+            }
+        }
+
+        function handleStageClear() {
+            gameState = 'stage_clear';
+            stopBGM();
+            playSound('stageclear');
+            update3D(performance.now());
+            composer.render();
+            
+            if (currentStage >= 5) {
+                showMessage(i18n[currentLang].missionAcc, "text-cyan-400 glitch", 0);
+                setTimeout(() => {
+                    document.getElementById('msg-overlay').classList.add('hidden');
+                    document.getElementById('btn-global-config').classList.add('hidden');
+                    showFeedbackScreen(true);
+                }, 2000);
+            } else {
+                showMessage(`PROTOCOL ${currentStage} COMPLETE`, "text-cyan-400", 2000);
+                setTimeout(() => {
+                    currentStage++;
+                    linesClearedThisStage = 0;
+                    setupDifficulty();
+                    board = createMatrix(COLS, ROWS); 
+                    playerReset();
+                    updateUI();
+                    
+                    gameState = 'playing';
+                    lastTime = performance.now();
+                    update(lastTime);
+                    playBGM();
+                }, 2500);
+            }
+        }
+
+        function handleGameOver() {
+            gameState = 'game_over';
+            stopBGM();
+            playSound('gameover');
+            showMessage(i18n[currentLang].sysFailure, "text-red-500 glitch", 0);
+            
+            setTimeout(() => {
+                document.getElementById('msg-overlay').classList.add('hidden');
+                document.getElementById('btn-global-config').classList.add('hidden');
+                if (currentMode === 'free') showFeedbackScreen(false);
+                else {
+                    gameState = 'menu';
+                    document.getElementById('game-ui').classList.add('hidden');
+                    document.getElementById('ui-container').classList.remove('hidden');
+                    document.getElementById('btn-global-config').classList.remove('hidden');
+                    playMenuBGM();
+                    navTo('screen-main');
+                }
+            }, 2000);
+        }
+
+        function updateUI() {
+            document.getElementById('ui-score').textContent = score.toString().padStart(6, '0');
+            if (currentMode === 'stage') {
+                document.getElementById('stage-info-panel').classList.remove('hidden');
+                document.getElementById('ui-stage').textContent = currentStage;
+                document.getElementById('ui-goal').textContent = `${Math.min(linesClearedThisStage, targetLines)}/${targetLines}`;
+                document.getElementById('ui-mode-text').textContent = `STAGE [${currentDiff.toUpperCase()}]`;
+            } else {
+                document.getElementById('stage-info-panel').classList.add('hidden');
+                document.getElementById('ui-mode-text').textContent = `FREE [${currentDiff.toUpperCase()}] LVL ${level}`;
+            }
+        }
+
+        function showFeedbackScreen(isWin) {
+            document.getElementById('game-ui').classList.add('hidden');
+            document.getElementById('ui-container').classList.remove('hidden');
+            document.getElementById('btn-global-config').classList.add('hidden');
+            playMenuBGM();
+            navTo('screen-feedback');
+            
+            document.getElementById('feedback-title').textContent = isWin ? i18n[currentLang].missionAcc : i18n[currentLang].sysFailure;
+            document.getElementById('feedback-title').className = `font-cyber text-3xl mb-2 glitch ${isWin ? 'text-cyan-400' : 'text-red-500'}`;
+            document.getElementById('feedback-score').textContent = `FINAL CREDITS: ${score}`;
+            
+            selectedRating = 0;
+            document.querySelectorAll('.star-rating i').forEach(s => {
+                s.classList.remove('fas', 'active');
+                s.classList.add('far');
+            });
+            document.getElementById('feedback-comment').value = '';
+            document.getElementById('btn-submit').disabled = false;
+            document.getElementById('btn-submit').textContent = i18n[currentLang].btnSubmit;
+        }
+
+        function navTo(screenId) {
+            ['screen-main', 'screen-mode', 'screen-difficulty', 'screen-feedback', 'screen-settings'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.classList.add('hidden');
+            });
+            const target = document.getElementById(screenId);
+            if(target) target.classList.remove('hidden');
+        }
+
+        const openConfig = () => {
+            playSound('click');
+            if(gameState === 'playing' || gameState === 'paused') {
+                gameState = 'paused';
+                document.getElementById('pause-overlay').classList.remove('hidden');
+                pauseBGM();
+                configReturnTarget = 'game';
+                document.getElementById('game-ui').classList.add('hidden');
+                document.getElementById('ui-container').classList.remove('hidden');
+                document.getElementById('btn-global-config').classList.add('hidden');
+                navTo('screen-settings');
+            } else {
+                configReturnTarget = 'menu';
+                document.getElementById('btn-global-config').classList.add('hidden');
+                navTo('screen-settings');
+            }
+        };
+
+        document.getElementById('btn-global-config').onclick = openConfig;
+        document.getElementById('btn-settings').onclick = openConfig;
+
+        document.getElementById('init-overlay').onclick = () => {
+            document.getElementById('init-overlay').classList.add('hidden');
+            document.getElementById('btn-global-config').classList.remove('hidden');
+            initAudio();
+            Tone.start();
+            playMenuBGM();
+            gameState = 'menu';
+        };
+
+        document.getElementById('btn-start').onclick = () => navTo('screen-mode');
+        document.getElementById('btn-back-main').onclick = () => navTo('screen-main');
+        document.getElementById('btn-back-mode').onclick = () => navTo('screen-mode');
+        
+        document.getElementById('btn-back-settings').onclick = () => {
+            playSound('click');
+            document.getElementById('btn-global-config').classList.remove('hidden');
+            if(configReturnTarget === 'game') {
+                document.getElementById('ui-container').classList.add('hidden');
+                document.getElementById('game-ui').classList.remove('hidden');
+                document.getElementById('pause-overlay').classList.remove('hidden');
+            } else {
+                navTo('screen-main');
+            }
+        };
+
+        document.getElementById('btn-lang-toggle').onclick = () => {
+            playSound('click');
+            currentLang = currentLang === 'TH' ? 'EN' : 'TH';
+            applyLanguage();
+        };
+        
+        document.getElementById('btn-mode-stage').onclick = () => { currentMode = 'stage'; navTo('screen-difficulty'); };
+        document.getElementById('btn-mode-free').onclick = () => { currentMode = 'free'; navTo('screen-difficulty'); };
+
+        document.getElementById('btn-diff-easy').onclick = () => startGame('easy');
+        document.getElementById('btn-diff-normal').onclick = () => startGame('normal');
+        document.getElementById('btn-diff-hard').onclick = () => startGame('hard');
+
+        document.getElementById('btn-resume').onclick = () => {
+            gameState = 'playing';
+            document.getElementById('pause-overlay').classList.add('hidden');
+            lastTime = performance.now();
+            update(lastTime);
+            resumeBGM();
+        };
+        document.getElementById('btn-quit').onclick = () => {
+            gameState = 'menu';
+            document.getElementById('pause-overlay').classList.add('hidden');
+            document.getElementById('game-ui').classList.add('hidden');
+            document.getElementById('ui-container').classList.remove('hidden');
+            document.getElementById('btn-global-config').classList.remove('hidden');
+            stopBGM();
+            playMenuBGM();
+            navTo('screen-main');
+        };
+
+        const stars = document.querySelectorAll('.star-rating i');
+        stars.forEach(star => {
+            star.addEventListener('click', (e) => {
+                selectedRating = parseInt(e.target.getAttribute('data-val'));
+                stars.forEach((s, idx) => {
+                    if (idx < selectedRating) { s.classList.remove('far'); s.classList.add('fas', 'active'); }
+                    else { s.classList.remove('fas', 'active'); s.classList.add('far'); }
+                });
+            });
+        });
+
+        document.getElementById('btn-submit').onclick = async () => {
+            if (selectedRating === 0) {
+                const starContainer = document.getElementById('star-container');
+                starContainer.classList.add('animate-bounce');
+                setTimeout(() => starContainer.classList.remove('animate-bounce'), 1000);
+                return;
+            }
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true; btn.textContent = "UPLOADING...";
+
+            await saveGameData({
+                rating: selectedRating,
+                comment: document.getElementById('feedback-comment').value,
+                score: score,
+                mode: currentMode,
+                difficulty: currentDiff,
+                completedStage: currentStage
+            });
+            navTo('screen-main');
+            document.getElementById('btn-global-config').classList.remove('hidden');
+        };
+
+        document.addEventListener('keydown', e => {
+            if (gameState !== 'playing') {
+                if (e.keyCode === 80 && gameState === 'paused') document.getElementById('btn-resume').click();
+                return;
+            }
+            switch (e.keyCode) {
+                case 37: playerMove(-1); break;
+                case 39: playerMove(1); break;
+                case 40: playerDrop(); break;
+                case 38: playerRotate(1); break;
+                case 32: playerHardDrop(); break;
+                case 80: 
+                    gameState = 'paused';
+                    document.getElementById('pause-overlay').classList.remove('hidden');
+                    pauseBGM();
+                    break;
+            }
+        });
+
+        function setupVolumeControls() {
+            ['master', 'bgm', 'sfx'].forEach(type => {
+                const slider = document.getElementById(`vol-${type}`);
+                if(slider) {
+                    slider.addEventListener('input', (e) => {
+                        const val = e.target.value;
+                        document.getElementById(`lbl-vol-${type}`).textContent = `${val}%`;
+                        
+                        initAudio(); 
+                        Tone.start();
+                        
+                        if (type === 'master' && masterNode) masterNode.volume.value = sliderToDb(val);
+                        if (type === 'bgm' && bgmNode) bgmNode.volume.value = sliderToDb(val);
+                        if (type === 'sfx' && sfxNode) sfxNode.volume.value = sliderToDb(val);
+                    });
+                }
+            });
+        }
+
+        let moveInterval;
+        const setupBtn = (id, action, repeat = false) => {
+            const btn = document.getElementById(id);
+            if(!btn) return;
+            const startAction = (e) => { e.preventDefault(); if(gameState === 'playing') { action(); if(repeat) moveInterval = setInterval(action, 100); } };
+            const stopAction = (e) => { e.preventDefault(); clearInterval(moveInterval); };
+            btn.addEventListener('touchstart', startAction); btn.addEventListener('touchend', stopAction);
+            btn.addEventListener('mousedown', startAction); btn.addEventListener('mouseup', stopAction); btn.addEventListener('mouseleave', stopAction);
+        };
+
+        setupBtn('btn-left', () => playerMove(-1), true);
+        setupBtn('btn-right', () => playerMove(1), true);
+        setupBtn('btn-down', () => playerDrop(), true);
+        setupBtn('btn-rotate', () => playerRotate(1), false);
+        setupBtn('btn-drop', () => playerHardDrop(), false);
+
+        window.onload = async () => {
+            document.getElementById('screen-loading').classList.remove('hidden');
+            document.getElementById('screen-main').classList.add('hidden');
+            document.getElementById('btn-global-config').classList.add('hidden');
+            
+            setupVolumeControls();
+            applyLanguage();
+
+            document.querySelectorAll('.btn-cyber, .mobile-btn').forEach(btn => {
+                btn.addEventListener('mouseenter', () => playSound('hover'));
+                btn.addEventListener('mousedown', () => playSound('click'));
+                btn.addEventListener('touchstart', () => playSound('click'), {passive: true});
+            });
+            
+            await initFirebase();
+            document.getElementById('screen-loading').classList.add('hidden');
+            document.getElementById('screen-main').classList.remove('hidden');
+            
+            composer.render();
+        };
+    </script>
+</body>
+</html>
